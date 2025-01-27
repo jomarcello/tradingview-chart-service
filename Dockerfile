@@ -6,28 +6,42 @@ RUN apt-get update && apt-get install -y \
     gnupg \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Playwright and browsers
-RUN pip install playwright && \
-    playwright install chromium && \
-    playwright install-deps
+# Install Chrome dependencies
+RUN apt-get update && apt-get install -y \
+    libnss3 \
+    libnspr4 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libxkbcommon0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libxrandr2 \
+    libgbm1 \
+    libasound2 \
+    && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /app
 
-# Copy requirements file
+# Copy requirements and install dependencies
 COPY requirements.txt .
-
-# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Install Playwright browsers
+RUN playwright install chromium
+RUN playwright install-deps
 
 # Copy application code
 COPY . .
 
-# Create error image
-RUN echo "Chart temporarily unavailable" > chart_error.png
+# Create log directory
+RUN mkdir -p /var/log/chart_service
 
-# Expose port
-EXPOSE 8000
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
 
 # Run the application
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
