@@ -145,26 +145,35 @@ async def capture_tradingview_chart(symbol: str, interval: str = "1h", theme: st
                     await page.wait_for_selector(".chart-container", timeout=15000)
                     logger.info("Chart container found")
                     
-                    # Wait for TradingView object to be available
-                    await page.wait_for_function("""() => {
-                        return window.TradingView && 
-                               typeof window.TradingView.activeChart === 'function' && 
-                               window.TradingView.activeChart();
-                    }""", timeout=15000)
+                    # Wait for TradingView object to be available using a safer approach
+                    await page.wait_for_selector(".chart-container[data-ready='true']", timeout=15000)
                     logger.info("TradingView chart loaded")
                     
                 except Exception as e:
                     logger.error(f"Chart container or TradingView object not found: {str(e)}")
                     raise
                 
-                # Add technical indicators
+                # Add technical indicators using a safer approach
                 try:
-                    await page.evaluate("""() => {
-                        const chart = window.TradingView.activeChart();
-                        chart.executeActionById('INSERT_INDICATOR_PACKAGE_MACD');
-                        chart.executeActionById('INSERT_INDICATOR_PACKAGE_RSI');
-                        chart.executeActionById('INSERT_INDICATOR_PACKAGE_BB');
-                    }""")
+                    # Click the indicators button
+                    await page.click(".button-2ioYhFEY")
+                    await asyncio.sleep(1)
+                    
+                    # Click MACD
+                    await page.click("text=MACD")
+                    await asyncio.sleep(1)
+                    
+                    # Click RSI
+                    await page.click("text=RSI")
+                    await asyncio.sleep(1)
+                    
+                    # Click Bollinger Bands
+                    await page.click("text=Bollinger Bands")
+                    await asyncio.sleep(1)
+                    
+                    # Close the indicators panel
+                    await page.keyboard.press("Escape")
+                    
                     logger.info("Technical indicators added")
                 except Exception as e:
                     logger.error(f"Failed to add indicators: {str(e)}")
