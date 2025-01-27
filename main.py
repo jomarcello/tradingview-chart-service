@@ -13,8 +13,12 @@ from PIL import Image
 
 # Setup logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler('chart_service.log')
+    ]
 )
 logger = logging.getLogger(__name__)
 
@@ -32,13 +36,18 @@ class ChartRequest(BaseModel):
 def setup_driver():
     """Setup Chrome driver with required options"""
     chrome_options = Options()
-    chrome_options.add_argument("--headless")  # Run in headless mode
+    chrome_options.add_argument("--headless")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument("--window-size=1920,1080")  # Set window size
+    chrome_options.add_argument("--window-size=1920,1080")
     
-    driver = webdriver.Chrome(options=chrome_options)
-    return driver
+    try:
+        driver = webdriver.Chrome(options=chrome_options)
+        logger.info("Chrome driver setup successful")
+        return driver
+    except Exception as e:
+        logger.exception("Failed to setup Chrome driver")
+        raise
 
 def get_tradingview_url(symbol: str, timeframe: str) -> str:
     """Generate TradingView URL with proper symbol mapping"""
@@ -47,7 +56,7 @@ def get_tradingview_url(symbol: str, timeframe: str) -> str:
         "EURUSD": "FX:EURUSD",
         "GBPUSD": "FX:GBPUSD",
         "USDJPY": "FX:USDJPY",
-        "BTCUSD": "BINANCE:BTCUSDT",  # Using Binance as source
+        "BTCUSD": "BINANCE:BTCUSDT",
         "ETHUSD": "BINANCE:ETHUSDT",
         "US30": "DJ:DJI",
         "SPX500": "SP:SPX",
@@ -55,7 +64,6 @@ def get_tradingview_url(symbol: str, timeframe: str) -> str:
         "XAUUSD": "OANDA:XAUUSD"
     }
     
-    # Map timeframes to TradingView format
     tv_timeframe_map = {
         "1m": "1",
         "5m": "5",
@@ -70,33 +78,35 @@ def get_tradingview_url(symbol: str, timeframe: str) -> str:
     tv_symbol = tv_symbol_map.get(symbol.upper(), symbol)
     tv_timeframe = tv_timeframe_map.get(timeframe.lower(), "60")
     
-    return f"https://www.tradingview.com/chart/?symbol={tv_symbol}&interval={tv_timeframe}"
+    url = f"https://www.tradingview.com/chart/?symbol={tv_symbol}&interval={tv_timeframe}"
+    logger.info(f"Generated TradingView URL: {url}")
+    return url
 
 @app.post("/capture-chart")
 async def capture_chart(request: ChartRequest):
     """Capture a screenshot of the TradingView chart"""
+    logger.info(f"Received chart request for {request.symbol} {request.timeframe}")
     try:
         driver = setup_driver()
         url = get_tradingview_url(request.symbol, request.timeframe)
-        logger.info(f"Capturing chart for URL: {url}")
         
         try:
-            # Load the page
+            logger.debug(f"Loading URL: {url}")
             driver.get(url)
             
-            # Wait for the chart to load
+            logger.debug("Waiting for chart container")
             WebDriverWait(driver, 20).until(
                 EC.presence_of_element_located((By.CLASS_NAME, "chart-container"))
             )
             
-            # Wait a bit more for the chart to fully render
+            logger.debug("Waiting for chart to render")
             driver.implicitly_wait(5)
             
-            # Take screenshot of the chart container
+            logger.debug("Taking screenshot")
             chart_element = driver.find_element(By.CLASS_NAME, "chart-container")
             screenshot = chart_element.screenshot_as_png
             
-            # Convert to base64
+            logger.info(f"Screenshot taken, size: {len(screenshot)} bytes")
             img_base64 = base64.b64encode(screenshot).decode()
             
             return {
@@ -105,17 +115,34 @@ async def capture_chart(request: ChartRequest):
                 "message": "Chart captured successfully"
             }
             
+        except Exception as e:
+            logger.exception("Error capturing chart")
+            raise HTTPException(status_code=500, detail=f"Failed to capture chart: {str(e)}")
         finally:
+            logger.debug("Closing Chrome driver")
             driver.quit()
             
     except Exception as e:
-        logger.error(f"Error capturing chart: {str(e)}")
+        logger.exception("Error in capture_chart endpoint")
         raise HTTPException(status_code=500, detail=f"Failed to capture chart: {str(e)}")
+
+@app.get("/test-chrome")
+async def test_chrome():
+    """Test if Chrome and ChromeDriver are working"""
+    try:
+        driver = setup_driver()
+        driver.get("https://www.google.com")
+        title = driver.title
+        driver.quit()
+        return {"status": "success", "message": f"Chrome is working, loaded page with title: {title}"}
+    except Exception as e:
+        logger.exception("Chrome test failed")
+        return {"status": "error", "message": str(e)}
 
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
-    return {"status": "healthy"}
+    return {"status": "healthy", "chrome_driver": "installed"}
 
 if __name__ == "__main__":
     import uvicorn
