@@ -144,16 +144,26 @@ async def capture_tradingview_chart(symbol: str, interval: str = "1h", theme: st
                 try:
                     await page.wait_for_selector(".chart-container", timeout=15000)
                     logger.info("Chart container found")
+                    
+                    # Wait for TradingView object to be available
+                    await page.wait_for_function("""() => {
+                        return window.TradingView && 
+                               typeof window.TradingView.activeChart === 'function' && 
+                               window.TradingView.activeChart();
+                    }""", timeout=15000)
+                    logger.info("TradingView chart loaded")
+                    
                 except Exception as e:
-                    logger.error(f"Chart container not found: {str(e)}")
+                    logger.error(f"Chart container or TradingView object not found: {str(e)}")
                     raise
                 
                 # Add technical indicators
                 try:
                     await page.evaluate("""() => {
-                        window.TradingView.activeChart().executeActionById('INSERT_INDICATOR_PACKAGE_MACD');
-                        window.TradingView.activeChart().executeActionById('INSERT_INDICATOR_PACKAGE_RSI');
-                        window.TradingView.activeChart().executeActionById('INSERT_INDICATOR_PACKAGE_BB');
+                        const chart = window.TradingView.activeChart();
+                        chart.executeActionById('INSERT_INDICATOR_PACKAGE_MACD');
+                        chart.executeActionById('INSERT_INDICATOR_PACKAGE_RSI');
+                        chart.executeActionById('INSERT_INDICATOR_PACKAGE_BB');
                     }""")
                     logger.info("Technical indicators added")
                 except Exception as e:
