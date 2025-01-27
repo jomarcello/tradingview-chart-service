@@ -247,6 +247,17 @@ async def get_chart_screenshot(symbol: str, interval: str = "1h", theme: str = "
         logger.error(f"Error in screenshot endpoint: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/logs")
+async def get_logs():
+    """Get the last 100 lines of logs"""
+    try:
+        with open("chart_service.log", "r") as f:
+            lines = f.readlines()[-100:]
+            return {"logs": "".join(lines)}
+    except Exception as e:
+        logger.error(f"Error reading logs: {str(e)}")
+        return {"error": str(e)}
+
 @app.get("/health")
 async def health_check():
     """Enhanced health check endpoint"""
