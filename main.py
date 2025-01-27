@@ -40,6 +40,8 @@ def setup_driver():
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--window-size=1920,1080")
+    chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+    chrome_options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36")
     
     try:
         driver = webdriver.Chrome(options=chrome_options)
@@ -78,7 +80,8 @@ def get_tradingview_url(symbol: str, timeframe: str) -> str:
     tv_symbol = tv_symbol_map.get(symbol.upper(), symbol)
     tv_timeframe = tv_timeframe_map.get(timeframe.lower(), "60")
     
-    url = f"https://www.tradingview.com/chart/?symbol={tv_symbol}&interval={tv_timeframe}"
+    # Use the public chart URL format
+    url = f"https://www.tradingview.com/chart/simple/?symbol={tv_symbol}&interval={tv_timeframe}"
     logger.info(f"Generated TradingView URL: {url}")
     return url
 
@@ -94,20 +97,36 @@ async def capture_chart(request: ChartRequest):
             logger.debug(f"Loading URL: {url}")
             driver.get(url)
             
-            logger.debug("Waiting for chart container")
-            WebDriverWait(driver, 20).until(
-                EC.presence_of_element_located((By.CLASS_NAME, "chart-container"))
+            # Wait for the chart to load
+            logger.debug("Waiting for chart to load")
+            WebDriverWait(driver, 30).until(
+                EC.presence_of_element_located((By.CLASS_NAME, "chart-markup-table"))
             )
             
+            # Additional wait for chart to render
             logger.debug("Waiting for chart to render")
-            driver.implicitly_wait(5)
+            driver.implicitly_wait(10)
             
+            # Take screenshot of the chart area
             logger.debug("Taking screenshot")
-            chart_element = driver.find_element(By.CLASS_NAME, "chart-container")
+            chart_element = driver.find_element(By.CLASS_NAME, "chart-markup-table")
             screenshot = chart_element.screenshot_as_png
             
-            logger.info(f"Screenshot taken, size: {len(screenshot)} bytes")
-            img_base64 = base64.b64encode(screenshot).decode()
+            # Process the image
+            logger.debug("Processing image")
+            img = Image.open(BytesIO(screenshot))
+            
+            # Convert to RGB if necessary
+            if img.mode != 'RGB':
+                img = img.convert('RGB')
+            
+            # Save to bytes with better quality
+            img_bytes = BytesIO()
+            img.save(img_bytes, format='JPEG', quality=95)
+            img_bytes = img_bytes.getvalue()
+            
+            logger.info(f"Screenshot processed, size: {len(img_bytes)} bytes")
+            img_base64 = base64.b64encode(img_bytes).decode()
             
             return {
                 "status": "success",
