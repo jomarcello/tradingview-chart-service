@@ -1,8 +1,11 @@
 fastapi==0.109.0
 uvicorn==0.27.0
-selenium==4.16.0
+playwright==1.41.1
+redis==5.0.1
+python-dotenv==1.0.0
+httpx==0.26.0
 pillow==10.2.0
-python-multipart==0.0.7
+python-multipart==0.0.6
 pydantic==2.5.3
 webdriver-manager==4.0.1
 requests==2.31.0
