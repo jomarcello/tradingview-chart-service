@@ -145,30 +145,43 @@ async def capture_tradingview_chart(symbol: str, interval: str = "1h", theme: st
                     await page.wait_for_selector(".chart-container", timeout=15000)
                     logger.info("Chart container found")
                     
-                    # Wait for TradingView object to be available using a safer approach
-                    await page.wait_for_selector(".chart-container[data-ready='true']", timeout=15000)
-                    logger.info("TradingView chart loaded")
+                    # Wait for the loading indicator to disappear
+                    await page.wait_for_selector(".loading-indicator", state="hidden", timeout=15000)
+                    logger.info("Chart loading completed")
+                    
+                    # Wait for the main chart element
+                    await page.wait_for_selector(".chart-markup-table", timeout=15000)
+                    logger.info("Chart markup loaded")
+                    
+                    # Wait a bit for everything to settle
+                    await asyncio.sleep(2)
                     
                 except Exception as e:
-                    logger.error(f"Chart container or TradingView object not found: {str(e)}")
+                    logger.error(f"Chart container or elements not found: {str(e)}")
                     raise
                 
-                # Add technical indicators using a safer approach
+                # Add technical indicators using UI clicks
                 try:
                     # Click the indicators button
-                    await page.click(".button-2ioYhFEY")
+                    await page.click("[data-name='indicators-template-dialog']")
                     await asyncio.sleep(1)
                     
-                    # Click MACD
-                    await page.click("text=MACD")
+                    # Search and add MACD
+                    await page.fill(".search-rEoqAlzV input", "MACD")
+                    await asyncio.sleep(0.5)
+                    await page.click("text=MACD >> nth=0")
                     await asyncio.sleep(1)
                     
-                    # Click RSI
-                    await page.click("text=RSI")
+                    # Search and add RSI
+                    await page.fill(".search-rEoqAlzV input", "RSI")
+                    await asyncio.sleep(0.5)
+                    await page.click("text=Relative Strength Index >> nth=0")
                     await asyncio.sleep(1)
                     
-                    # Click Bollinger Bands
-                    await page.click("text=Bollinger Bands")
+                    # Search and add Bollinger Bands
+                    await page.fill(".search-rEoqAlzV input", "Bollinger")
+                    await asyncio.sleep(0.5)
+                    await page.click("text=Bollinger Bands >> nth=0")
                     await asyncio.sleep(1)
                     
                     # Close the indicators panel
