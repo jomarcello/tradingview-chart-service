@@ -118,7 +118,7 @@ async def capture_tradingview_chart(symbol: str, interval: str = "1h", theme: st
                 
                 browser = await p.chromium.launch(
                     args=browser_args,
-                    timeout=15000  # 15 second timeout
+                    timeout=60000  # 60 second timeout
                 )
                 
                 logger.info("Browser launched successfully")
@@ -134,7 +134,7 @@ async def capture_tradingview_chart(symbol: str, interval: str = "1h", theme: st
                 
                 # Navigate with timeout
                 try:
-                    await page.goto(url, wait_until="networkidle", timeout=15000)
+                    await page.goto(url, wait_until="networkidle", timeout=60000)
                     logger.info("Page loaded successfully")
                 except Exception as e:
                     logger.error(f"Page load timeout: {str(e)}")
@@ -142,58 +142,23 @@ async def capture_tradingview_chart(symbol: str, interval: str = "1h", theme: st
                 
                 # Wait for chart container
                 try:
-                    await page.wait_for_selector(".chart-container", timeout=15000)
+                    await page.wait_for_selector(".chart-container", timeout=60000)
                     logger.info("Chart container found")
                     
                     # Wait for the loading indicator to disappear
-                    await page.wait_for_selector(".loading-indicator", state="hidden", timeout=15000)
+                    await page.wait_for_selector(".loading-indicator", state="hidden", timeout=60000)
                     logger.info("Chart loading completed")
                     
                     # Wait for the main chart element
-                    await page.wait_for_selector(".chart-markup-table", timeout=15000)
+                    await page.wait_for_selector(".chart-markup-table", timeout=60000)
                     logger.info("Chart markup loaded")
                     
-                    # Wait a bit for everything to settle
-                    await asyncio.sleep(2)
+                    # Wait a bit longer for everything to settle
+                    await asyncio.sleep(5)
                     
                 except Exception as e:
                     logger.error(f"Chart container or elements not found: {str(e)}")
                     raise
-                
-                # Add technical indicators using UI clicks
-                try:
-                    # Click the indicators button
-                    await page.click("[data-name='indicators-template-dialog']")
-                    await asyncio.sleep(1)
-                    
-                    # Search and add MACD
-                    await page.fill(".search-rEoqAlzV input", "MACD")
-                    await asyncio.sleep(0.5)
-                    await page.click("text=MACD >> nth=0")
-                    await asyncio.sleep(1)
-                    
-                    # Search and add RSI
-                    await page.fill(".search-rEoqAlzV input", "RSI")
-                    await asyncio.sleep(0.5)
-                    await page.click("text=Relative Strength Index >> nth=0")
-                    await asyncio.sleep(1)
-                    
-                    # Search and add Bollinger Bands
-                    await page.fill(".search-rEoqAlzV input", "Bollinger")
-                    await asyncio.sleep(0.5)
-                    await page.click("text=Bollinger Bands >> nth=0")
-                    await asyncio.sleep(1)
-                    
-                    # Close the indicators panel
-                    await page.keyboard.press("Escape")
-                    
-                    logger.info("Technical indicators added")
-                except Exception as e:
-                    logger.error(f"Failed to add indicators: {str(e)}")
-                    raise
-                
-                # Wait for indicators to load
-                await asyncio.sleep(2)
                 
                 # Take screenshot
                 screenshot = await page.screenshot(
