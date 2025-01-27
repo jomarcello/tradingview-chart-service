@@ -45,6 +45,7 @@ def setup_driver():
     
     try:
         driver = webdriver.Chrome(options=chrome_options)
+        driver.set_page_load_timeout(30)
         logger.info("Chrome driver setup successful")
         return driver
     except Exception as e:
@@ -97,22 +98,22 @@ async def capture_chart(request: ChartRequest):
             logger.debug(f"Loading URL: {url}")
             driver.get(url)
             
-            # Wait for the chart to load
-            logger.debug("Waiting for chart to load")
-            WebDriverWait(driver, 30).until(
+            # Wait for chart container
+            logger.debug("Waiting for chart container")
+            chart_container = WebDriverWait(driver, 30).until(
                 EC.presence_of_element_located((By.CLASS_NAME, "chart-markup-table"))
             )
             
             # Additional wait for chart to render
             logger.debug("Waiting for chart to render")
+            driver.execute_script("window.scrollTo(0, 0)")
             driver.implicitly_wait(10)
             
-            # Take screenshot of the chart area
+            # Take screenshot
             logger.debug("Taking screenshot")
-            chart_element = driver.find_element(By.CLASS_NAME, "chart-markup-table")
-            screenshot = chart_element.screenshot_as_png
+            screenshot = chart_container.screenshot_as_png
             
-            # Process the image
+            # Process image
             logger.debug("Processing image")
             img = Image.open(BytesIO(screenshot))
             
