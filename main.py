@@ -108,7 +108,11 @@ async def capture_tradingview_chart(symbol: str, interval: str = "1h", theme: st
             
             async with async_playwright() as p:
                 # Launch browser with proxy if available
-                browser_args = []
+                browser_args = [
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage'
+                ]
                 if proxy:
                     browser_args.append(f'--proxy-server={proxy}')
                 
@@ -244,7 +248,9 @@ async def health_check():
         browser_status = "unknown"
         try:
             async with async_playwright() as p:
-                browser = await p.chromium.launch()
+                browser = await p.chromium.launch(
+                    args=['--no-sandbox', '--disable-setuid-sandbox']
+                )
                 await browser.close()
                 browser_status = "healthy"
         except Exception as e:
