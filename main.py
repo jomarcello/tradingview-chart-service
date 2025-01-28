@@ -206,8 +206,7 @@ async def capture_tradingview_chart(symbol: str, interval: str = "1h", theme: st
                     # Take screenshot with better quality
                     screenshot = await page.screenshot(
                         type='png',
-                        quality=100,
-                        scale='device',
+                        scale=2,  # Higher resolution
                         full_page=False,
                         clip={
                             'x': 0,
