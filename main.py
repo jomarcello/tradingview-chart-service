@@ -107,31 +107,42 @@ async def capture_tradingview_chart(symbol: str, interval: str = "1h", theme: st
             logger.info(f"Accessing URL: {url}")
             
             async with async_playwright() as p:
-                # Launch browser with proxy if available
-                browser_args = [
-                    '--no-sandbox',
-                    '--disable-setuid-sandbox',
-                    '--disable-dev-shm-usage'
-                ]
-                if proxy:
-                    browser_args.append(f'--proxy-server={proxy}')
-                
+                # Launch browser with optimized settings
                 browser = await p.chromium.launch(
-                    args=browser_args,
-                    timeout=60000  # 60 second timeout
+                    headless=True,
+                    args=[
+                        '--no-sandbox',
+                        '--disable-setuid-sandbox',
+                        '--disable-dev-shm-usage',
+                        '--disable-accelerated-2d-canvas',
+                        '--disable-gpu',
+                        '--disable-extensions',
+                        '--disable-sync',
+                        '--disable-background-networking',
+                        '--disable-default-apps',
+                        '--disable-translate',
+                        '--disable-web-security',  # Allow cross-origin requests
+                        '--no-first-run',
+                        '--no-zygote',
+                        '--single-process'
+                    ]
                 )
-                
                 logger.info("Browser launched successfully")
-                
-                # Create new context with custom viewport
+
+                # Create new page with optimized settings
                 context = await browser.new_context(
-                    viewport={'width': 1600, 'height': 900},  # Larger viewport
-                    user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                    viewport={'width': 1280, 'height': 800},
+                    user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                    bypass_csp=True,  # Bypass Content Security Policy
+                    ignore_https_errors=True
                 )
-                
                 page = await context.new_page()
                 logger.info("New page created")
-                
+
+                # Set shorter timeouts
+                page.set_default_timeout(15000)
+                page.set_default_navigation_timeout(15000)
+
                 # Navigate with timeout
                 try:
                     await page.goto(url, wait_until="networkidle", timeout=60000)
@@ -142,8 +153,17 @@ async def capture_tradingview_chart(symbol: str, interval: str = "1h", theme: st
                 
                 # Wait for chart container
                 try:
-                    await page.wait_for_selector(".chart-container", timeout=60000)
+                    # Wait longer for initial page load
+                    await page.wait_for_selector(".chart-container", timeout=30000)
                     logger.info("Chart container found")
+                    
+                    # Wait for price axis to appear (indicates chart is loaded)
+                    await page.wait_for_selector(".price-axis", timeout=30000)
+                    logger.info("Price axis found")
+                    
+                    # Wait for candlesticks to appear
+                    await page.wait_for_selector(".chart-markup-table", timeout=30000)
+                    logger.info("Chart markup found")
                     
                     # Try to close any popups
                     try:
@@ -155,72 +175,58 @@ async def capture_tradingview_chart(symbol: str, interval: str = "1h", theme: st
                     except Exception as e:
                         logger.info(f"No 'Got it' popup found: {str(e)}")
 
-                    try:
-                        # Wait for and click any "Reconnect" buttons
-                        reconnect_buttons = await page.query_selector_all('button:has-text("Reconnect")')
-                        for button in reconnect_buttons:
-                            await button.click()
-                            logger.info("Clicked 'Reconnect' button")
-                            # Wait a bit for the reconnection
-                            await asyncio.sleep(5)
-                    except Exception as e:
-                        logger.info(f"No 'Reconnect' button found: {str(e)}")
-
-                    # Try to close any other popups
-                    try:
-                        # Close any dialog boxes
-                        dialogs = await page.query_selector_all('div[role="dialog"]')
-                        for dialog in dialogs:
-                            close_button = await dialog.query_selector('button[aria-label="Close"]')
-                            if close_button:
-                                await close_button.click()
-                                logger.info("Closed dialog")
-                    except Exception as e:
-                        logger.info(f"No dialogs found: {str(e)}")
-
-                    # Hide right toolbar using JavaScript
+                    # Hide elements using JavaScript
                     await page.evaluate("""() => {
                         // Hide right toolbar
                         const rightToolbar = document.querySelector('.right-toolbar');
-                        if (rightToolbar) {
-                            rightToolbar.style.display = 'none';
-                        }
+                        if (rightToolbar) rightToolbar.style.display = 'none';
                         
                         // Hide any popups
                         const popups = document.querySelectorAll('[role="dialog"]');
-                        popups.forEach(popup => {
-                            popup.style.display = 'none';
-                        });
+                        popups.forEach(popup => popup.style.display = 'none');
+                        
+                        // Hide header
+                        const header = document.querySelector('header');
+                        if (header) header.style.display = 'none';
+                        
+                        // Hide bottom toolbar
+                        const bottomToolbar = document.querySelector('.bottom-toolbar');
+                        if (bottomToolbar) bottomToolbar.style.display = 'none';
                     }""")
-                    logger.info("Hidden toolbars and popups")
+                    logger.info("Hidden UI elements")
 
-                    # Wait for the loading indicator to disappear
-                    await page.wait_for_selector(".loading-indicator", state="hidden", timeout=60000)
-                    logger.info("Chart loading completed")
+                    # Wait for loading indicator to disappear
+                    await page.wait_for_selector(".loading-indicator", state="hidden", timeout=30000)
+                    logger.info("Loading completed")
                     
-                    # Wait for the main chart element
-                    await page.wait_for_selector(".chart-markup-table", timeout=60000)
-                    logger.info("Chart markup loaded")
+                    # Extra wait to ensure everything is rendered
+                    await asyncio.sleep(10)
+                    logger.info("Extra wait completed")
                     
-                    # Wait a bit longer for everything to settle
-                    await asyncio.sleep(5)
+                    # Take screenshot with better quality
+                    screenshot = await page.screenshot(
+                        type='png',
+                        quality=100,
+                        scale='device',
+                        full_page=False,
+                        clip={
+                            'x': 0,
+                            'y': 0,
+                            'width': 1280,
+                            'height': 800
+                        }
+                    )
+                    logger.info("Screenshot captured successfully")
+                    
+                    # Close browser
+                    await browser.close()
+                    logger.info("Browser closed")
+                    
+                    return screenshot, True
                     
                 except Exception as e:
                     logger.error(f"Chart container or elements not found: {str(e)}")
                     raise
-                
-                # Take screenshot
-                screenshot = await page.screenshot(
-                    clip={"x": 0, "y": 0, "width": 1600, "height": 900},
-                    type="png"
-                )
-                logger.info("Screenshot captured successfully")
-                
-                # Close browser
-                await browser.close()
-                logger.info("Browser closed")
-                
-                return screenshot, True
                 
         except Exception as e:
             logger.error(f"Error in attempt {attempt + 1}: {str(e)}")
