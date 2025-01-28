@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import JSONResponse
 from playwright.async_api import async_playwright
 import asyncio
@@ -266,10 +266,9 @@ async def get_chart(symbol: str, interval: str = "15m", theme: str = "dark"):
         
         if is_cached:
             logger.info(f"Returning cached chart for {symbol}")
-            return JSONResponse({
-                "image": cached_chart,
-                "cached": True
-            })
+            # Convert cached base64 back to bytes
+            image_bytes = base64.b64decode(cached_chart)
+            return Response(content=image_bytes, media_type="image/png")
         
         # Capture new chart
         logger.info(f"Capturing new chart for {symbol}")
@@ -278,8 +277,13 @@ async def get_chart(symbol: str, interval: str = "15m", theme: str = "dark"):
         if not success or not screenshot:
             raise HTTPException(status_code=500, detail="Failed to capture chart")
         
-        # Return bytes screenshot
-        return JSONResponse(content=screenshot, media_type="image/png")
+        # Cache the screenshot as base64
+        base64_image = base64.b64encode(screenshot).decode('utf-8')
+        await cache_chart(cache_key, base64_image)
+        logger.info(f"New chart cached for {symbol}")
+        
+        # Return the raw bytes
+        return Response(content=screenshot, media_type="image/png")
         
     except Exception as e:
         logger.error(f"Error getting chart: {str(e)}")
