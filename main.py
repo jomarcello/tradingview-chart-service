@@ -84,7 +84,7 @@ async def capture_tradingview_chart(symbol: str, interval: str = "1h", theme: st
                 logger.info("Page loaded successfully")
                 
                 # Wait for chart to load
-                WebDriverWait(driver, 20).until(
+                chart_element = WebDriverWait(driver, 20).until(
                     EC.presence_of_element_located((By.CLASS_NAME, "chart-container"))
                 )
                 
@@ -117,29 +117,10 @@ async def capture_tradingview_chart(symbol: str, interval: str = "1h", theme: st
                 # Wait for chart to render
                 time.sleep(3)
                 
-                # Press Alt + S to download image
-                actions = ActionChains(driver)
-                actions.key_down(Keys.ALT).key_down(Keys.SHIFT).perform()
-                time.sleep(1)  # Wait for download dialog
-                actions.key_up(Keys.SHIFT).key_up(Keys.ALT).perform()
-                
-                # Wait for download to complete
-                time.sleep(2)
-                
-                # Get the most recent file in downloads
-                files = sorted([os.path.join(DOWNLOADS_DIR, f) for f in os.listdir(DOWNLOADS_DIR) if f.startswith('chart_')], 
-                             key=os.path.getmtime, reverse=True)
-                
-                if files:
-                    with open(files[0], 'rb') as f:
-                        screenshot = f.read()
-                    # Remove the file after reading
-                    os.remove(files[0])
-                    logger.info("Chart image captured successfully")
-                    return screenshot, True
-                else:
-                    logger.error("No downloaded chart image found")
-                    return None, False
+                # Take screenshot of the chart element
+                screenshot = chart_element.screenshot_as_png
+                logger.info("Chart image captured successfully")
+                return screenshot, True
                 
             except Exception as e:
                 logger.error(f"Error during chart capture: {str(e)}")
