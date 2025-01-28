@@ -32,6 +32,10 @@ logger = logging.getLogger(__name__)
 # Initialize FastAPI
 app = FastAPI()
 
+# Create downloads directory
+DOWNLOADS_DIR = '/tmp/downloads'
+os.makedirs(DOWNLOADS_DIR, exist_ok=True)
+
 def setup_driver():
     """Setup Chrome driver with optimized settings"""
     chrome_options = Options()
@@ -45,6 +49,14 @@ def setup_driver():
     chrome_options.add_argument('--disable-infobars')
     chrome_options.add_argument('--disable-notifications')
     chrome_options.add_argument('--hide-scrollbars')
+    
+    # Set download directory
+    prefs = {
+        "download.default_directory": DOWNLOADS_DIR,
+        "download.prompt_for_download": False,
+        "download.directory_upgrade": True
+    }
+    chrome_options.add_experimental_option("prefs", prefs)
     
     try:
         driver = webdriver.Chrome(options=chrome_options)
@@ -114,10 +126,8 @@ async def capture_tradingview_chart(symbol: str, interval: str = "1h", theme: st
                 # Wait for download to complete
                 time.sleep(2)
                 
-                # Read the downloaded image from the downloads directory
-                downloads_dir = os.path.expanduser("~/Downloads")
                 # Get the most recent file in downloads
-                files = sorted([os.path.join(downloads_dir, f) for f in os.listdir(downloads_dir) if f.startswith('chart_')], 
+                files = sorted([os.path.join(DOWNLOADS_DIR, f) for f in os.listdir(DOWNLOADS_DIR) if f.startswith('chart_')], 
                              key=os.path.getmtime, reverse=True)
                 
                 if files:
