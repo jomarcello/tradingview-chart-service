@@ -145,6 +145,27 @@ async def capture_tradingview_chart(symbol: str, interval: str = "1h", theme: st
                     await page.wait_for_selector(".chart-container", timeout=60000)
                     logger.info("Chart container found")
                     
+                    # Try to close any popups
+                    try:
+                        # Wait for and click the "Got it" button if present
+                        got_it_button = await page.wait_for_selector('button:text("Got it")', timeout=5000)
+                        if got_it_button:
+                            await got_it_button.click()
+                            logger.info("Closed 'Got it' popup")
+                    except:
+                        logger.info("No 'Got it' popup found")
+
+                    try:
+                        # Wait for and click the "Reconnect" button if present
+                        reconnect_button = await page.wait_for_selector('button:text("Reconnect")', timeout=5000)
+                        if reconnect_button:
+                            await reconnect_button.click()
+                            logger.info("Clicked 'Reconnect' button")
+                            # Wait a bit for the reconnection
+                            await asyncio.sleep(5)
+                    except:
+                        logger.info("No 'Reconnect' button found")
+                    
                     # Wait for the loading indicator to disappear
                     await page.wait_for_selector(".loading-indicator", state="hidden", timeout=60000)
                     logger.info("Chart loading completed")
