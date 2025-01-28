@@ -105,22 +105,31 @@ async def capture_tradingview_chart(symbol: str, interval: str = "1h", theme: st
                 # Wait for chart to render
                 time.sleep(3)
                 
-                # Go fullscreen with F11
+                # Press Alt + S to download image
                 actions = ActionChains(driver)
-                actions.key_down(Keys.F11).perform()
-                logger.info("Pressed F11 for fullscreen")
+                actions.key_down(Keys.ALT).key_down(Keys.SHIFT).perform()
+                time.sleep(1)  # Wait for download dialog
+                actions.key_up(Keys.SHIFT).key_up(Keys.ALT).perform()
                 
-                # Wait for fullscreen transition
+                # Wait for download to complete
                 time.sleep(2)
                 
-                # Take screenshot
-                screenshot = driver.get_screenshot_as_png()
-                logger.info("Screenshot captured successfully")
+                # Read the downloaded image from the downloads directory
+                downloads_dir = os.path.expanduser("~/Downloads")
+                # Get the most recent file in downloads
+                files = sorted([os.path.join(downloads_dir, f) for f in os.listdir(downloads_dir) if f.startswith('chart_')], 
+                             key=os.path.getmtime, reverse=True)
                 
-                # Exit fullscreen before closing
-                actions.key_up(Keys.F11).perform()
-                
-                return screenshot, True
+                if files:
+                    with open(files[0], 'rb') as f:
+                        screenshot = f.read()
+                    # Remove the file after reading
+                    os.remove(files[0])
+                    logger.info("Chart image captured successfully")
+                    return screenshot, True
+                else:
+                    logger.error("No downloaded chart image found")
+                    return None, False
                 
             except Exception as e:
                 logger.error(f"Error during chart capture: {str(e)}")
