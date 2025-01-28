@@ -65,7 +65,7 @@ async def capture_tradingview_chart(symbol: str, interval: str = "1h", theme: st
 
                 # Create new page with optimized settings
                 context = await browser.new_context(
-                    viewport={'width': 1280, 'height': 800},
+                    viewport={'width': 1920, 'height': 1080},  
                     user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
                     bypass_csp=True,
                     ignore_https_errors=True
@@ -73,59 +73,76 @@ async def capture_tradingview_chart(symbol: str, interval: str = "1h", theme: st
                 page = await context.new_page()
                 logger.info("New page created")
 
-                # Set shorter timeouts
-                page.set_default_timeout(15000)
-                page.set_default_navigation_timeout(15000)
+                # Set longer timeouts for better loading
+                page.set_default_timeout(30000)
+                page.set_default_navigation_timeout(30000)
 
-                # Navigate with timeout
+                # Navigate and wait for full load
                 try:
-                    await page.goto(url, wait_until="networkidle", timeout=15000)
+                    await page.goto(url, wait_until="networkidle", timeout=30000)
                     logger.info("Page loaded successfully")
-                except Exception as e:
-                    logger.error(f"Error loading page: {str(e)}")
-                    await browser.close()
-                    continue
 
-                # Wait for chart container
-                try:
-                    await page.wait_for_selector(".chart-container", timeout=15000)
+                    # Wait for chart container
+                    await page.wait_for_selector(".chart-container", timeout=30000)
                     logger.info("Chart container found")
+
+                    # Wait for price axis and chart to be fully loaded
+                    await page.wait_for_selector(".price-axis", timeout=30000)
+                    await page.wait_for_selector(".chart-markup-table", timeout=30000)
                     
                     # Hide elements using JavaScript
                     await page.evaluate("""() => {
-                        // Hide right toolbar
-                        const rightToolbar = document.querySelector('.right-toolbar');
-                        if (rightToolbar) rightToolbar.style.display = 'none';
+                        // Make chart container full screen
+                        const container = document.querySelector('.chart-container');
+                        if (container) {
+                            container.style.width = '100vw';
+                            container.style.height = '100vh';
+                            container.style.position = 'fixed';
+                            container.style.top = '0';
+                            container.style.left = '0';
+                            container.style.zIndex = '9999';
+                        }
                         
-                        // Hide any popups
-                        const popups = document.querySelectorAll('[role="dialog"]');
-                        popups.forEach(popup => popup.style.display = 'none');
+                        // Hide ALL UI elements
+                        const elementsToHide = [
+                            '.header-chart-panel',
+                            '.left-toolbar',
+                            '.right-toolbar',
+                            '.bottom-toolbar',
+                            '.layout__area--left',
+                            '.layout__area--right',
+                            'header',
+                            '.drawingToolbar',
+                            '.chart-controls-bar',
+                            '.control-bar',
+                            '.botbar',
+                            '[role="dialog"]'
+                        ];
                         
-                        // Hide header
-                        const header = document.querySelector('header');
-                        if (header) header.style.display = 'none';
+                        elementsToHide.forEach(selector => {
+                            const elements = document.querySelectorAll(selector);
+                            elements.forEach(el => {
+                                if (el) el.style.display = 'none';
+                            });
+                        });
                         
-                        // Hide bottom toolbar
-                        const bottomToolbar = document.querySelector('.bottom-toolbar');
-                        if (bottomToolbar) bottomToolbar.style.display = 'none';
+                        // Force chart to take full width/height
+                        const chartContainer = document.querySelector('.chart-container');
+                        if (chartContainer) {
+                            chartContainer.style.width = '100%';
+                            chartContainer.style.height = '100%';
+                        }
                     }""")
-                    logger.info("Hidden UI elements")
+                    logger.info("Hidden UI elements and maximized chart")
 
-                    # Wait for loading indicator to disappear
-                    await page.wait_for_selector(".loading-indicator", state="hidden", timeout=15000)
-                    logger.info("Loading completed")
+                    # Wait a bit for the chart to adjust
+                    await asyncio.sleep(2)
                     
-                    # Take screenshot
+                    # Take full page screenshot
                     screenshot = await page.screenshot(
                         type='png',
                         scale='device',
-                        full_page=False,
-                        clip={
-                            'x': 0,
-                            'y': 0,
-                            'width': 1280,
-                            'height': 800
-                        }
+                        full_page=True
                     )
                     logger.info("Screenshot captured successfully")
                     
@@ -136,7 +153,7 @@ async def capture_tradingview_chart(symbol: str, interval: str = "1h", theme: st
                     return screenshot, True
                     
                 except Exception as e:
-                    logger.error(f"Chart container or elements not found: {str(e)}")
+                    logger.error(f"Error during chart capture: {str(e)}")
                     raise
                     
         except Exception as e:
