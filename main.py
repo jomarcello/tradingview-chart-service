@@ -92,7 +92,7 @@ async def rotate_proxy() -> Optional[str]:
         logger.error(f"Error getting proxy: {str(e)}")
     return None
 
-async def capture_tradingview_chart(symbol: str, interval: str = "1h", theme: str = "dark", max_retries: int = 2) -> Tuple[Optional[str], bool]:
+async def capture_tradingview_chart(symbol: str, interval: str = "1h", theme: str = "dark", max_retries: int = 2) -> Tuple[Optional[bytes], bool]:
     """Capture TradingView chart with retries and detailed logging"""
     logger.info(f"Starting chart capture for {symbol} {interval}")
     
@@ -201,24 +201,16 @@ async def capture_tradingview_chart(symbol: str, interval: str = "1h", theme: st
                 await browser.close()
                 logger.info("Browser closed")
                 
-                # Return successful screenshot
-                return base64.b64encode(screenshot).decode('utf-8'), True
+                return screenshot, True
                 
         except Exception as e:
-            logger.error(f"Attempt {attempt + 1}/{max_retries} failed: {str(e)}")
-            if attempt < max_retries - 1:
-                wait_time = 10 * (attempt + 1)  # Exponential backoff
-                logger.info(f"Waiting {wait_time} seconds before retry")
-                await asyncio.sleep(wait_time)
-            else:
-                logger.error("All retry attempts failed")
-                # Return error image on final attempt
-                try:
-                    with open("chart_error.png", "rb") as f:
-                        return base64.b64encode(f.read()).decode('utf-8'), False
-                except Exception as read_error:
-                    logger.error(f"Failed to read error image: {str(read_error)}")
-                    return None, False
+            logger.error(f"Error in attempt {attempt + 1}: {str(e)}")
+            if attempt == max_retries - 1:
+                raise
+            
+            await asyncio.sleep(2)  # Wait before retry
+            
+    return None, False
 
 @app.get("/screenshot")
 async def get_chart_screenshot(symbol: str, interval: str = "1h", theme: str = "dark"):
@@ -250,12 +242,12 @@ async def get_chart_screenshot(symbol: str, interval: str = "1h", theme: str = "
             
         # Cache successful screenshots
         if success:
-            await cache_chart(cache_key, chart_data)
+            await cache_chart(cache_key, base64.b64encode(chart_data).decode('utf-8'))
             logger.info(f"New chart cached for {symbol}")
         
         return JSONResponse({
             "status": "success",
-            "image": chart_data,
+            "image": base64.b64encode(chart_data).decode('utf-8'),
             "cached": False,
             "error_fallback": not success
         })
@@ -286,17 +278,8 @@ async def get_chart(symbol: str, interval: str = "15m", theme: str = "dark"):
         if not success or not screenshot:
             raise HTTPException(status_code=500, detail="Failed to capture chart")
         
-        # Convert to base64
-        base64_image = base64.b64encode(screenshot).decode('utf-8')
-        
-        # Cache the new chart
-        await cache_chart(cache_key, base64_image)
-        logger.info(f"New chart cached for {symbol}")
-        
-        return JSONResponse({
-            "image": base64_image,
-            "cached": False
-        })
+        # Return bytes screenshot
+        return JSONResponse(content=screenshot, media_type="image/png")
         
     except Exception as e:
         logger.error(f"Error getting chart: {str(e)}")
