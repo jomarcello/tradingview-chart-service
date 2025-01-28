@@ -60,14 +60,10 @@ async def capture_tradingview_chart(symbol: str, interval: str = "1h", theme: st
     """Capture TradingView chart"""
     for attempt in range(max_retries):
         try:
-            # Construct URL with FX prefix for forex pairs and proper URL encoding
-            symbol_with_prefix = f"FX:{symbol}" if "USD" in symbol or "EUR" in symbol or "GBP" in symbol or "JPY" in symbol else symbol
-            encoded_symbol = urllib.parse.quote(symbol_with_prefix)
-            # Ensure interval is lowercase
-            interval = interval.lower()
-            url = f"https://www.tradingview.com/chart/?symbol={encoded_symbol}&interval={interval}"
+            # Use exact TradingView URL format
+            url = "https://www.tradingview.com/chart/?symbol=FX%3AEURUSD"
             logger.info(f"Generated TradingView URL: {url}")
-            logger.info(f"Starting chart capture for {symbol_with_prefix} {interval}")
+            logger.info(f"Starting chart capture for EURUSD")
             
             driver = setup_driver()
             try:
