@@ -59,9 +59,9 @@ async def capture_tradingview_chart(symbol: str, interval: str = "1h", theme: st
     """Capture TradingView chart"""
     for attempt in range(max_retries):
         try:
-            # Construct URL with chart ID and OANDA prefix for forex pairs
-            symbol_with_prefix = f"OANDA:{symbol}" if "USD" in symbol or "EUR" in symbol or "GBP" in symbol or "JPY" in symbol else symbol
-            url = f"https://www.tradingview.com/chart/aBxuyRGJ/?symbol={symbol_with_prefix}&interval={interval}&theme={theme}"
+            # Construct URL with FX prefix for forex pairs
+            symbol_with_prefix = f"FX:{symbol}" if "USD" in symbol or "EUR" in symbol or "GBP" in symbol or "JPY" in symbol else symbol
+            url = f"https://www.tradingview.com/chart/?symbol={symbol_with_prefix}&interval={interval}"
             logger.info(f"Generated TradingView URL: {url}")
             logger.info(f"Starting chart capture for {symbol_with_prefix} {interval}")
             
