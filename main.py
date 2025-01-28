@@ -100,24 +100,25 @@ async def capture_tradingview_chart(symbol: str, interval: str = "1h", theme: st
                             if (el) el.style.display = 'none';
                         });
                     });
-                    
-                    // Force dark theme
-                    document.body.className = 'theme-dark';
                 """)
                 
                 # Wait for chart to render
-                time.sleep(2)
+                time.sleep(3)
                 
-                # Press F11 for fullscreen
+                # Go fullscreen with F11
                 actions = ActionChains(driver)
-                actions.send_keys(Keys.F11).perform()
+                actions.key_down(Keys.F11).perform()
+                logger.info("Pressed F11 for fullscreen")
                 
-                # Wait a moment for fullscreen transition
-                time.sleep(1)
+                # Wait for fullscreen transition
+                time.sleep(2)
                 
                 # Take screenshot
                 screenshot = driver.get_screenshot_as_png()
                 logger.info("Screenshot captured successfully")
+                
+                # Exit fullscreen before closing
+                actions.key_up(Keys.F11).perform()
                 
                 return screenshot, True
                 
@@ -126,12 +127,6 @@ async def capture_tradingview_chart(symbol: str, interval: str = "1h", theme: st
                 raise
                 
             finally:
-                # Exit fullscreen before closing
-                try:
-                    actions = ActionChains(driver)
-                    actions.send_keys(Keys.F11).perform()
-                except:
-                    pass
                 driver.quit()
                 logger.info("Browser closed")
                 
