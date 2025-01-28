@@ -264,6 +264,44 @@ async def get_chart_screenshot(symbol: str, interval: str = "1h", theme: str = "
         logger.error(f"Error in screenshot endpoint: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/chart")
+async def get_chart(symbol: str, interval: str = "15m", theme: str = "dark"):
+    """Get chart screenshot with improved error handling and logging"""
+    try:
+        # Check cache first
+        cache_key = f"chart:{symbol}:{interval}:{theme}"
+        cached_chart, is_cached = await get_cached_chart(cache_key)
+        
+        if is_cached:
+            logger.info(f"Returning cached chart for {symbol}")
+            return JSONResponse({
+                "image": cached_chart,
+                "cached": True
+            })
+        
+        # Capture new chart
+        logger.info(f"Capturing new chart for {symbol}")
+        screenshot, success = await capture_tradingview_chart(symbol, interval, theme)
+        
+        if not success or not screenshot:
+            raise HTTPException(status_code=500, detail="Failed to capture chart")
+        
+        # Convert to base64
+        base64_image = base64.b64encode(screenshot).decode('utf-8')
+        
+        # Cache the new chart
+        await cache_chart(cache_key, base64_image)
+        logger.info(f"New chart cached for {symbol}")
+        
+        return JSONResponse({
+            "image": base64_image,
+            "cached": False
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting chart: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/logs")
 async def get_logs():
     """Get the last 100 lines of logs"""
