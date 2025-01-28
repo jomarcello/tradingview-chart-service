@@ -15,8 +15,9 @@ RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key
     && apt-get install -y google-chrome-stable \
     && rm -rf /var/lib/apt/lists/*
 
-# Install ChromeDriver
-RUN wget -q "https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/120.0.6099.109/linux64/chromedriver-linux64.zip" \
+# Get Chrome version and install matching ChromeDriver
+RUN CHROME_VERSION=$(google-chrome --version | awk '{print $3}' | cut -d. -f1) \
+    && wget -q "https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/${CHROME_VERSION}.0.6834.110/linux64/chromedriver-linux64.zip" \
     && unzip chromedriver-linux64.zip \
     && mv chromedriver-linux64/chromedriver /usr/local/bin/ \
     && chmod +x /usr/local/bin/chromedriver \

@@ -4,6 +4,8 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.common.action_chains import ActionChains
 import base64
 from io import BytesIO
 import logging
@@ -34,18 +36,18 @@ def setup_driver():
     chrome_options = Options()
     chrome_options.add_argument('--headless')
     chrome_options.add_argument('--no-sandbox')
-    chrome_options.add_argument('--window-size=1920,1080')
+    chrome_options.add_argument('--start-maximized')  # Start maximized
+    chrome_options.add_argument('--kiosk')  # This forces fullscreen
     chrome_options.add_argument('--disable-dev-shm-usage')
     chrome_options.add_argument('--disable-gpu')
     chrome_options.add_argument("--disable-extensions")
     chrome_options.add_argument('--disable-infobars')
     chrome_options.add_argument('--disable-notifications')
     chrome_options.add_argument('--hide-scrollbars')
-    chrome_options.add_argument('--log-level=3')
-    chrome_options.add_argument('--silent')
     
     try:
         driver = webdriver.Chrome(options=chrome_options)
+        driver.set_window_size(1920, 1080)  # Set a consistent window size
         driver.set_page_load_timeout(60)
         logger.info("Chrome driver setup successful")
         return driver
@@ -57,9 +59,10 @@ async def capture_tradingview_chart(symbol: str, interval: str = "1h", theme: st
     """Capture TradingView chart"""
     for attempt in range(max_retries):
         try:
-            # Construct URL with chart ID and FX prefix for forex pairs
-            symbol_with_prefix = f"FX:{symbol}" if "USD" in symbol or "EUR" in symbol or "GBP" in symbol or "JPY" in symbol else symbol
-            url = f"https://www.tradingview.com/chart/aBxuyRGJ/?symbol={symbol_with_prefix}"
+            # Construct URL with chart ID and OANDA prefix for forex pairs
+            symbol_with_prefix = f"OANDA:{symbol}" if "USD" in symbol or "EUR" in symbol or "GBP" in symbol or "JPY" in symbol else symbol
+            url = f"https://www.tradingview.com/chart/?symbol={symbol_with_prefix}&interval={interval}"
+            logger.info(f"Generated TradingView URL: {url}")
             logger.info(f"Starting chart capture for {symbol_with_prefix} {interval}")
             
             driver = setup_driver()
@@ -68,30 +71,10 @@ async def capture_tradingview_chart(symbol: str, interval: str = "1h", theme: st
                 driver.get(url)
                 logger.info("Page loaded successfully")
                 
-                # Wait for chart elements with multiple selectors
-                selectors = [
-                    "div[class*='chart-container']",
-                    "div[class*='chart-markup']",
-                    "div[class*='chart-widget']",
-                    "div[class*='layout__area--center']"
-                ]
-                
-                chart_element = None
-                for selector in selectors:
-                    logger.info(f"Trying selector: {selector}")
-                    try:
-                        chart_element = WebDriverWait(driver, 10).until(
-                            EC.presence_of_element_located((By.CSS_SELECTOR, selector))
-                        )
-                        logger.info(f"Found element with selector: {selector}")
-                        break
-                    except Exception as e:
-                        logger.warning(f"Selector {selector} not found: {str(e)}")
-                        continue
-                
-                if not chart_element:
-                    logger.error("Could not find any chart element")
-                    raise Exception("Chart element not found")
+                # Wait for chart to load
+                WebDriverWait(driver, 20).until(
+                    EC.presence_of_element_located((By.CLASS_NAME, "chart-container"))
+                )
                 
                 # Hide UI elements
                 driver.execute_script("""
@@ -123,10 +106,17 @@ async def capture_tradingview_chart(symbol: str, interval: str = "1h", theme: st
                 """)
                 
                 # Wait for chart to render
-                time.sleep(5)
+                time.sleep(2)
+                
+                # Press F11 for fullscreen
+                actions = ActionChains(driver)
+                actions.send_keys(Keys.F11).perform()
+                
+                # Wait a moment for fullscreen transition
+                time.sleep(1)
                 
                 # Take screenshot
-                screenshot = chart_element.screenshot_as_png
+                screenshot = driver.get_screenshot_as_png()
                 logger.info("Screenshot captured successfully")
                 
                 return screenshot, True
@@ -136,6 +126,12 @@ async def capture_tradingview_chart(symbol: str, interval: str = "1h", theme: st
                 raise
                 
             finally:
+                # Exit fullscreen before closing
+                try:
+                    actions = ActionChains(driver)
+                    actions.send_keys(Keys.F11).perform()
+                except:
+                    pass
                 driver.quit()
                 logger.info("Browser closed")
                 
@@ -164,17 +160,6 @@ async def get_chart(symbol: str, interval: str = "15m", theme: str = "dark"):
     except Exception as e:
         logger.error(f"Error getting chart: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/logs")
-async def get_logs():
-    """Get the last 100 lines of logs"""
-    try:
-        with open("/tmp/chart_service.log", "r") as f:
-            lines = f.readlines()[-100:]
-            return {"logs": "".join(lines)}
-    except Exception as e:
-        logger.error(f"Error reading logs: {str(e)}")
-        return {"error": str(e)}
 
 @app.get("/health")
 async def health_check():
