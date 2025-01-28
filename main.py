@@ -32,14 +32,10 @@ async def capture_tradingview_chart(symbol: str, interval: str = "1h", theme: st
     """Capture TradingView chart"""
     for attempt in range(max_retries):
         try:
-            # Construct URL with chart ID and FX prefix
+            # Construct URL with chart ID and FX prefix for forex pairs
             symbol_with_prefix = f"FX:{symbol}" if "USD" in symbol or "EUR" in symbol or "GBP" in symbol or "JPY" in symbol else symbol
             url = f"https://www.tradingview.com/chart/aBxuyRGJ/?symbol={symbol_with_prefix}"
             logger.info(f"Starting chart capture for {symbol_with_prefix} {interval}")
-            
-            # Use direct connection without proxy
-            logger.info("Using direct connection")
-            logger.info(f"Accessing URL: {url}")
             
             async with async_playwright() as p:
                 # Launch browser with optimized settings
@@ -49,62 +45,65 @@ async def capture_tradingview_chart(symbol: str, interval: str = "1h", theme: st
                         '--no-sandbox',
                         '--disable-setuid-sandbox',
                         '--disable-dev-shm-usage',
-                        '--disable-accelerated-2d-canvas',
                         '--disable-gpu',
-                        '--disable-extensions',
-                        '--disable-sync',
-                        '--disable-background-networking',
-                        '--disable-default-apps',
-                        '--disable-translate',
-                        '--disable-web-security',
                         '--no-first-run',
-                        '--no-zygote',
-                        '--single-process'
+                        '--window-size=1920,1080'
                     ]
                 )
                 logger.info("Browser launched successfully")
 
-                # Create new page with optimized settings
+                # Create new page with specific viewport
                 context = await browser.new_context(
-                    viewport={'width': 1920, 'height': 1080},  
-                    user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-                    bypass_csp=True,
-                    ignore_https_errors=True
+                    viewport={'width': 1920, 'height': 1080},
+                    device_scale_factor=2,  # Higher resolution
+                    user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
                 )
                 page = await context.new_page()
                 logger.info("New page created")
-
-                # Set longer timeouts for better loading
-                page.set_default_timeout(30000)
-                page.set_default_navigation_timeout(30000)
 
                 # Navigate and wait for full load
                 try:
                     await page.goto(url, wait_until="networkidle", timeout=30000)
                     logger.info("Page loaded successfully")
 
-                    # Wait for chart container
+                    # Wait for essential elements
                     await page.wait_for_selector(".chart-container", timeout=30000)
-                    logger.info("Chart container found")
-
-                    # Wait for price axis and chart to be fully loaded
                     await page.wait_for_selector(".price-axis", timeout=30000)
                     await page.wait_for_selector(".chart-markup-table", timeout=30000)
-                    
-                    # Hide elements using JavaScript
+                    logger.info("Chart elements loaded")
+
+                    # Set chart preferences using JavaScript
                     await page.evaluate("""() => {
-                        // Make chart container full screen
-                        const container = document.querySelector('.chart-container');
-                        if (container) {
-                            container.style.width = '100vw';
-                            container.style.height = '100vh';
-                            container.style.position = 'fixed';
-                            container.style.top = '0';
-                            container.style.left = '0';
-                            container.style.zIndex = '9999';
+                        // Function to wait for an element
+                        function waitForElement(selector, timeout = 10000) {
+                            return new Promise((resolve, reject) => {
+                                const element = document.querySelector(selector);
+                                if (element) {
+                                    resolve(element);
+                                    return;
+                                }
+                                
+                                const observer = new MutationObserver(() => {
+                                    const element = document.querySelector(selector);
+                                    if (element) {
+                                        resolve(element);
+                                        observer.disconnect();
+                                    }
+                                });
+                                
+                                observer.observe(document.body, {
+                                    childList: true,
+                                    subtree: true
+                                });
+                                
+                                setTimeout(() => {
+                                    observer.disconnect();
+                                    reject(new Error(`Timeout waiting for ${selector}`));
+                                }, timeout);
+                            });
                         }
-                        
-                        // Hide ALL UI elements
+
+                        // Hide all toolbars and UI elements
                         const elementsToHide = [
                             '.header-chart-panel',
                             '.left-toolbar',
@@ -117,7 +116,8 @@ async def capture_tradingview_chart(symbol: str, interval: str = "1h", theme: st
                             '.chart-controls-bar',
                             '.control-bar',
                             '.botbar',
-                            '[role="dialog"]'
+                            '[role="dialog"]',
+                            '.tv-floating-toolbar'
                         ];
                         
                         elementsToHide.forEach(selector => {
@@ -126,37 +126,52 @@ async def capture_tradingview_chart(symbol: str, interval: str = "1h", theme: st
                                 if (el) el.style.display = 'none';
                             });
                         });
-                        
-                        // Force chart to take full width/height
-                        const chartContainer = document.querySelector('.chart-container');
-                        if (chartContainer) {
-                            chartContainer.style.width = '100%';
-                            chartContainer.style.height = '100%';
-                        }
-                    }""")
-                    logger.info("Hidden UI elements and maximized chart")
 
-                    # Wait a bit for the chart to adjust
+                        // Maximize chart container
+                        const container = document.querySelector('.chart-container');
+                        if (container) {
+                            container.style.position = 'fixed';
+                            container.style.top = '0';
+                            container.style.left = '0';
+                            container.style.width = '100vw';
+                            container.style.height = '100vh';
+                            container.style.zIndex = '9999';
+                        }
+
+                        // Force dark theme
+                        document.body.className = 'theme-dark';
+                        
+                        // Remove any popups or overlays
+                        const popups = document.querySelectorAll('.tv-popup-dialog');
+                        popups.forEach(popup => popup.remove());
+                    }""")
+                    logger.info("Chart preferences set")
+
+                    # Wait for any animations to complete
                     await asyncio.sleep(2)
                     
-                    # Take full page screenshot
-                    screenshot = await page.screenshot(
-                        type='png',
-                        scale='device',
-                        full_page=True
-                    )
-                    logger.info("Screenshot captured successfully")
-                    
-                    # Close browser
-                    await browser.close()
-                    logger.info("Browser closed")
-                    
-                    return screenshot, True
-                    
+                    # Take screenshot of the specific chart area
+                    chart_element = await page.query_selector('.chart-container')
+                    if chart_element:
+                        screenshot = await chart_element.screenshot(
+                            type='png',
+                            scale='device',
+                            animations='disabled'
+                        )
+                        logger.info("Screenshot captured successfully")
+                        return screenshot, True
+                    else:
+                        logger.error("Chart container not found")
+                        raise Exception("Chart container not found")
+
                 except Exception as e:
                     logger.error(f"Error during chart capture: {str(e)}")
                     raise
-                    
+
+                finally:
+                    await browser.close()
+                    logger.info("Browser closed")
+
         except Exception as e:
             logger.error(f"Error in attempt {attempt + 1}: {str(e)}")
             if attempt == max_retries - 1:
