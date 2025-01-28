@@ -92,26 +92,10 @@ async def capture_tradingview_chart(symbol: str, interval: str = "1h", theme: st
                 )
                 logger.info("Chart container found")
                 
-                # Set interval
-                logger.info(f"Setting interval to {interval}...")
-                interval_button = WebDriverWait(driver, 10).until(
-                    EC.element_to_be_clickable((By.CLASS_NAME, "interval-button"))
-                )
-                interval_button.click()
-                logger.info("Clicked interval button")
-                
-                # Find and click the correct interval
-                logger.info(f"Looking for {interval} button...")
-                interval_element = WebDriverWait(driver, 10).until(
-                    EC.element_to_be_clickable((By.XPATH, f"//div[contains(text(), '{interval}')]"))
-                )
-                interval_element.click()
-                logger.info("Clicked interval button")
-                
-                # Wait for chart to update
-                logger.info("Waiting for chart to update...")
+                # Wait for chart to render
+                logger.info("Waiting for chart to render...")
                 time.sleep(5)
-                logger.info("Chart should be updated now")
+                logger.info("Chart should be rendered now")
                 
                 # Hide UI elements
                 logger.info("Hiding UI elements...")
