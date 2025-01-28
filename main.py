@@ -12,19 +12,19 @@ import logging.handlers
 import aiohttp
 
 # Setup logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# Add file handler for detailed logging
-file_handler = logging.handlers.RotatingFileHandler(
-    'chart_service.log',
-    maxBytes=10485760,  # 10MB
-    backupCount=5
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),  # Log to console
+        logging.handlers.RotatingFileHandler(
+            '/tmp/chart_service.log',  # Use /tmp for Railway
+            maxBytes=10485760,  # 10MB
+            backupCount=5
+        )
+    ]
 )
-file_handler.setFormatter(logging.Formatter(
-    '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-))
-logger.addHandler(file_handler)
+logger = logging.getLogger(__name__)
 
 # Initialize FastAPI
 app = FastAPI()
@@ -293,7 +293,7 @@ async def get_chart(symbol: str, interval: str = "15m", theme: str = "dark"):
 async def get_logs():
     """Get the last 100 lines of logs"""
     try:
-        with open("chart_service.log", "r") as f:
+        with open("/tmp/chart_service.log", "r") as f:
             lines = f.readlines()[-100:]
             return {"logs": "".join(lines)}
     except Exception as e:
