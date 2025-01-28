@@ -102,8 +102,8 @@ async def capture_tradingview_chart(symbol: str, interval: str = "1h", theme: st
             proxy = await rotate_proxy()
             logger.info(f"Using proxy: {proxy if proxy else 'direct connection'}")
             
-            # Build TradingView URL
-            url = f"https://www.tradingview.com/chart/?symbol={symbol}&interval={interval}"
+            # Build TradingView URL - use chart layout without sidebar
+            url = f"https://www.tradingview.com/chart/?symbol={symbol}&interval={interval}&hidesidetoolbar=1"
             logger.info(f"Accessing URL: {url}")
             
             async with async_playwright() as p:
@@ -125,7 +125,7 @@ async def capture_tradingview_chart(symbol: str, interval: str = "1h", theme: st
                 
                 # Create new context with custom viewport
                 context = await browser.new_context(
-                    viewport={'width': 1200, 'height': 800},
+                    viewport={'width': 1600, 'height': 900},  # Larger viewport
                     user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
                 )
                 
@@ -165,7 +165,16 @@ async def capture_tradingview_chart(symbol: str, interval: str = "1h", theme: st
                             await asyncio.sleep(5)
                     except:
                         logger.info("No 'Reconnect' button found")
-                    
+
+                    # Hide right toolbar using JavaScript
+                    await page.evaluate("""() => {
+                        const rightToolbar = document.querySelector('.right-toolbar');
+                        if (rightToolbar) {
+                            rightToolbar.style.display = 'none';
+                        }
+                    }""")
+                    logger.info("Hidden right toolbar")
+
                     # Wait for the loading indicator to disappear
                     await page.wait_for_selector(".loading-indicator", state="hidden", timeout=60000)
                     logger.info("Chart loading completed")
@@ -183,7 +192,7 @@ async def capture_tradingview_chart(symbol: str, interval: str = "1h", theme: st
                 
                 # Take screenshot
                 screenshot = await page.screenshot(
-                    clip={"x": 0, "y": 0, "width": 1200, "height": 800},
+                    clip={"x": 0, "y": 0, "width": 1600, "height": 900},
                     type="png"
                 )
                 logger.info("Screenshot captured successfully")
