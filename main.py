@@ -73,9 +73,10 @@ async def capture_tradingview_chart(symbol: str, interval: str = "1h", theme: st
     for attempt in range(max_retries):
         try:
             # Use exact TradingView URL format
-            url = "https://www.tradingview.com/chart/?symbol=FX%3AEURUSD"
+            encoded_symbol = urllib.parse.quote(f"FX:{symbol}")
+            url = f"https://www.tradingview.com/chart/?symbol={encoded_symbol}"
             logger.info(f"Generated TradingView URL: {url}")
-            logger.info(f"Starting chart capture for EURUSD")
+            logger.info(f"Starting chart capture for {symbol}")
             
             driver = setup_driver()
             try:
@@ -87,6 +88,21 @@ async def capture_tradingview_chart(symbol: str, interval: str = "1h", theme: st
                 chart_element = WebDriverWait(driver, 20).until(
                     EC.presence_of_element_located((By.CLASS_NAME, "chart-container"))
                 )
+                
+                # Set interval
+                interval_button = WebDriverWait(driver, 10).until(
+                    EC.element_to_be_clickable((By.CLASS_NAME, "interval-button"))
+                )
+                interval_button.click()
+                
+                # Find and click the correct interval
+                interval_element = WebDriverWait(driver, 10).until(
+                    EC.element_to_be_clickable((By.XPATH, f"//div[contains(text(), '{interval}')]"))
+                )
+                interval_element.click()
+                
+                # Wait for chart to update
+                time.sleep(5)
                 
                 # Hide UI elements
                 driver.execute_script("""
