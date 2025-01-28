@@ -12,6 +12,7 @@ import logging
 import time
 import os
 from typing import Optional, Tuple
+import urllib.parse
 
 # Setup logging
 logging.basicConfig(
@@ -59,9 +60,10 @@ async def capture_tradingview_chart(symbol: str, interval: str = "1h", theme: st
     """Capture TradingView chart"""
     for attempt in range(max_retries):
         try:
-            # Construct URL with FX prefix for forex pairs
+            # Construct URL with FX prefix for forex pairs and proper URL encoding
             symbol_with_prefix = f"FX:{symbol}" if "USD" in symbol or "EUR" in symbol or "GBP" in symbol or "JPY" in symbol else symbol
-            url = f"https://www.tradingview.com/chart/?symbol={symbol_with_prefix}&interval={interval}"
+            encoded_symbol = urllib.parse.quote(symbol_with_prefix)
+            url = f"https://www.tradingview.com/chart/?symbol={encoded_symbol}&interval={interval}"
             logger.info(f"Generated TradingView URL: {url}")
             logger.info(f"Starting chart capture for {symbol_with_prefix} {interval}")
             
