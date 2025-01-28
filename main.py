@@ -147,33 +147,52 @@ async def capture_tradingview_chart(symbol: str, interval: str = "1h", theme: st
                     
                     # Try to close any popups
                     try:
-                        # Wait for and click the "Got it" button if present
-                        got_it_button = await page.wait_for_selector('button:text("Got it")', timeout=5000)
-                        if got_it_button:
-                            await got_it_button.click()
+                        # Wait for and click any "Got it" buttons
+                        got_it_buttons = await page.query_selector_all('button:has-text("Got it")')
+                        for button in got_it_buttons:
+                            await button.click()
                             logger.info("Closed 'Got it' popup")
-                    except:
-                        logger.info("No 'Got it' popup found")
+                    except Exception as e:
+                        logger.info(f"No 'Got it' popup found: {str(e)}")
 
                     try:
-                        # Wait for and click the "Reconnect" button if present
-                        reconnect_button = await page.wait_for_selector('button:text("Reconnect")', timeout=5000)
-                        if reconnect_button:
-                            await reconnect_button.click()
+                        # Wait for and click any "Reconnect" buttons
+                        reconnect_buttons = await page.query_selector_all('button:has-text("Reconnect")')
+                        for button in reconnect_buttons:
+                            await button.click()
                             logger.info("Clicked 'Reconnect' button")
                             # Wait a bit for the reconnection
                             await asyncio.sleep(5)
-                    except:
-                        logger.info("No 'Reconnect' button found")
+                    except Exception as e:
+                        logger.info(f"No 'Reconnect' button found: {str(e)}")
+
+                    # Try to close any other popups
+                    try:
+                        # Close any dialog boxes
+                        dialogs = await page.query_selector_all('div[role="dialog"]')
+                        for dialog in dialogs:
+                            close_button = await dialog.query_selector('button[aria-label="Close"]')
+                            if close_button:
+                                await close_button.click()
+                                logger.info("Closed dialog")
+                    except Exception as e:
+                        logger.info(f"No dialogs found: {str(e)}")
 
                     # Hide right toolbar using JavaScript
                     await page.evaluate("""() => {
+                        // Hide right toolbar
                         const rightToolbar = document.querySelector('.right-toolbar');
                         if (rightToolbar) {
                             rightToolbar.style.display = 'none';
                         }
+                        
+                        // Hide any popups
+                        const popups = document.querySelectorAll('[role="dialog"]');
+                        popups.forEach(popup => {
+                            popup.style.display = 'none';
+                        });
                     }""")
-                    logger.info("Hidden right toolbar")
+                    logger.info("Hidden toolbars and popups")
 
                     # Wait for the loading indicator to disappear
                     await page.wait_for_selector(".loading-indicator", state="hidden", timeout=60000)
